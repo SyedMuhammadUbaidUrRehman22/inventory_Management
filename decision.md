@@ -307,11 +307,15 @@ Packaging the app as a `.jar` or `.exe` is postponed until the database settings
 
 **D66. Commits and pushes happen only when the team asks.**
 
-**D67. Branches.**
-- Phase 1 docs and setup were merged to `main` (PR #1).
+**D67. Branches.** **[Team]**
 - Code work uses a branch per feature, each built on the previous one:
   `phase-1` → `staff-accounts` → `product-import`.
-- Each pull request targets the previous branch, and they are merged in that order.
+- Everything is merged into `main` with merge commits:
+  - PR #1: the FR phase plan and screen mockups.
+  - PR #2: `phase-1`.
+  - PR #3: `product-import`, which also brought in `staff-accounts`.
+  - The README and this decision log were merged straight from `product-import`, without a pull request.
+- Feature branches are kept after merging.
 
 **D68. Phase 1 was committed as four commits, one per layer** (DAOs, AccessControl, ProductCatalog, UI).
 Every commit builds and passes its tests on its own.
