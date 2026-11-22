@@ -22,6 +22,9 @@ public interface ProductDao {
     /** Inserts a new product, including its starting currentStockQuantity. */
     void insert(Product product);
 
+    /** Inserts several new products in one transaction: all are inserted, or (on any error) none. */
+    void insertAll(List<Product> products);
+
     /**
      * Updates the descriptive fields of a product (name, unit, price, reorder level,
      * status, category). Never changes currentStockQuantity: stock only changes

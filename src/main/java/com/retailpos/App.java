@@ -11,6 +11,7 @@ import com.retailpos.service.AccessControl;
 import com.retailpos.service.ProductCatalog;
 import com.retailpos.ui.AppServices;
 import com.retailpos.ui.LoginFrame;
+import com.retailpos.util.AppSettings;
 
 import javax.swing.SwingUtilities;
 import java.util.Map;
@@ -41,7 +42,8 @@ public final class App {
 
     /** Builds the service layer on top of the JDBC DAOs. */
     public static AppServices createServices() {
-        AccessControl accessControl = new AccessControl(new UserDaoJdbc());
+        AccessControl accessControl = new AccessControl(new UserDaoJdbc(),
+                AppSettings.get(AppSettings.MANAGER_SIGNUP_CODE));
         ProductCatalog productCatalog = new ProductCatalog(accessControl, new ProductDaoJdbc(),
                 new CategoryDaoJdbc(), new SupplierDaoJdbc(), new ProductSupplierDaoJdbc());
         return new AppServices(accessControl, productCatalog);

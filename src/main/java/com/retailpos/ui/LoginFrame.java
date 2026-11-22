@@ -1,5 +1,6 @@
 package com.retailpos.ui;
 
+import com.retailpos.model.Manager;
 import com.retailpos.model.User;
 import com.retailpos.util.BusinessException;
 
@@ -15,6 +16,7 @@ import javax.swing.WindowConstants;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -99,10 +101,32 @@ public class LoginFrame extends JFrame {
         card.add(UiTheme.stretch(signIn));
         card.add(Box.createVerticalStrut(16));
         card.add(hint);
+        if (services.accessControl().isManagerSignUpEnabled()) {
+            card.add(Box.createVerticalStrut(12));
+            card.add(UiTheme.stretch(signUpRow()));
+        }
         card.setPreferredSize(new Dimension(420, card.getPreferredSize().height));
 
         side.add(card);
         return side;
+    }
+
+    /** "New manager? Create an account" – only shown when a setup code is configured. */
+    private JPanel signUpRow() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.setOpaque(false);
+        row.add(UiTheme.label("New manager?  ", Font.PLAIN, 12f, UiTheme.MUTED));
+        JButton link = UiTheme.linkButton("Create an account");
+        link.addActionListener(e -> {
+            Manager manager = ManagerSignUpDialog.show(this, services.accessControl());
+            if (manager != null) {
+                usernameField.setText(manager.getUsername());
+                passwordField.setText("");
+                passwordField.requestFocusInWindow();
+            }
+        });
+        row.add(link);
+        return row;
     }
 
     private void signIn() {

@@ -4,3 +4,8 @@ db.url=jdbc:mysql://localhost:3306/retail_pos?serverTimezone=UTC
 db.user=your_mysql_user
 
 db.password=your_mysql_password
+
+# Code someone must enter on the login screen to sign up as a Manager.
+# Choose your own and share it only with people who should be Managers.
+# Leave it empty to turn Manager sign-up off.
+app.manager_signup_code=

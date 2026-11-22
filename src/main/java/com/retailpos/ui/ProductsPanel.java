@@ -20,6 +20,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
@@ -44,6 +45,7 @@ public class ProductsPanel extends JPanel implements Refreshable {
     private final ProductCatalog catalog;
     private final User user;
     private final boolean canEdit;
+    private final boolean canImport;   // Manager and Storekeeper: "Import from Excel"
 
     // search bar
     private final JTextField searchField = UiTheme.textField("Search products…");
@@ -77,6 +79,7 @@ public class ProductsPanel extends JPanel implements Refreshable {
         this.catalog = services.productCatalog();
         this.user = user;
         this.canEdit = services.accessControl().hasPermission(user, AccessControl.REGISTER_PRODUCT);
+        this.canImport = services.accessControl().hasPermission(user, AccessControl.IMPORT_PRODUCTS);
 
         setOpaque(false);
         setLayout(new BorderLayout(0, 16));
@@ -205,7 +208,19 @@ public class ProductsPanel extends JPanel implements Refreshable {
 
     private JComponent tableCard() {
         JPanel card = UiTheme.card(new BorderLayout(0, 12));
-        card.add(UiTheme.title("Products"), BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(UiTheme.title("Products"), BorderLayout.WEST);
+        if (canImport) {
+            JButton importButton = UiTheme.secondaryButton("Import from Excel");
+            importButton.addActionListener(e -> UiSupport.run(this, () -> {
+                if (ImportProductsDialog.show(SwingUtilities.getWindowAncestor(this), catalog, user) > 0) {
+                    refresh();
+                }
+            }));
+            top.add(importButton, BorderLayout.EAST);
+        }
+        card.add(top, BorderLayout.NORTH);
         UiTheme.styleTable(table);
         // Name and Category absorb narrow windows; the other columns keep room for their longest value.
         int[] widths = {72, 170, 110, 100, 80, 64, 116};

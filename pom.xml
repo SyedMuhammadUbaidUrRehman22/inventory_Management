@@ -20,6 +20,7 @@
         <flatlaf.version>3.5.4</flatlaf.version>
         <mysql.connector.version>9.1.0</mysql.connector.version>
         <jbcrypt.version>0.4</jbcrypt.version>
+        <poi.version>5.5.1</poi.version>
         <junit.version>5.11.3</junit.version>
     </properties>
 
@@ -44,6 +45,13 @@
             <groupId>org.mindrot</groupId>
             <artifactId>jbcrypt</artifactId>
             <version>${jbcrypt.version}</version>
+        </dependency>
+
+        <!-- Excel (.xlsx) product import and the import template -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
         </dependency>
 
         <!-- Tests -->

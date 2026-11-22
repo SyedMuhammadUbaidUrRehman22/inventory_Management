@@ -8,6 +8,7 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -17,6 +18,7 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
@@ -110,6 +112,26 @@ final class UiTheme {
         field.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
         field.putClientProperty(FlatClientProperties.STYLE, "arc: 6; margin: 6,8,6,8");
         return field;
+    }
+
+    /** Password field styled like {@link #textField}, with an eye button to reveal what was typed. */
+    static JPasswordField passwordField(String placeholder) {
+        JPasswordField field = new JPasswordField();
+        field.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
+        field.putClientProperty(FlatClientProperties.STYLE, "arc: 6; margin: 6,8,6,8; showRevealButton: true");
+        return field;
+    }
+
+    /** Text-only button that looks like a link. */
+    static JButton linkButton(String text) {
+        JButton b = new JButton(text);
+        b.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS);
+        b.putClientProperty(FlatClientProperties.STYLE, "margin: 0,0,0,0; focusWidth: 0; innerFocusWidth: 0;"
+                + " hoverBackground: null; pressedBackground: null");
+        b.setForeground(PRIMARY);
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 12f));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return b;
     }
 
     /** Lets a component fill the width of a vertical BoxLayout, left-aligned. */

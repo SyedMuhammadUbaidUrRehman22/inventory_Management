@@ -78,11 +78,14 @@ class AccessControlTest {
             "removeSupplierPrice,   true,  false, false",
             "managePurchaseOrders,  true,  false, false",
             "generateReports,       true,  false, false",
+            "manageStaff,           true,  false, false",
+            "importProducts,        true,  false, true",
             "recordStockReceipt,    false, false, true",
             "recordStockAdjustment, false, false, true",
             "createSale,            false, true,  false",
             "recordReturn,          false, true,  false",
             "searchProducts,        true,  true,  true",
+            "changeOwnPassword,     true,  true,  true",
     })
     void permissionsFollowRoleTable(String function, boolean manager, boolean cashier, boolean storekeeper) {
         assertEquals(manager, accessControl.hasPermission(MANAGER, function));

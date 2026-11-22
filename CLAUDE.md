@@ -9,6 +9,7 @@ Requirements are FR1–FR36 (see `docs/`). Do not invent features outside them
 - Java 17, Maven
 - UI: Swing + FlatLaf (`FlatLightLaf.setup()` in `main`), NetBeans GUI builder
 - Database: MySQL via plain JDBC (no ORM)
+- Excel import: Apache POI (`poi-ooxml`), used only in `util.SpreadsheetUtil`
 - Tests: JUnit 5
 
 ## Package layout (`com.retailpos`)
@@ -24,7 +25,7 @@ Requirements are FR1–FR36 (see `docs/`). Do not invent features outside them
 Layer direction is strict: `ui → service → dao → database`. Never skip a layer.
 
 ## Domain model (do not rename)
-- `User` (abstract): userID, username, passwordHash. Subclasses `Manager`, `Cashier`, `Storekeeper`
+- `User` (abstract): userID, username, passwordHash, createdByID, active. Subclasses `Manager`, `Cashier`, `Storekeeper`
 - `Product`: productCode, name, unit, sellingPrice, reorderLevel, status, currentStockQuantity; belongs to one `Category`
 - `Supplier`: supplierID, name, address, contactInfo
 - `ProductSupplier`: product ↔ supplier link with `purchasePrice` (many-to-many)
@@ -57,23 +58,33 @@ Enums:
 - Return: only against a COMPLETED sale; quantity cannot exceed unreturned quantity sold.
 - Low stock = `currentStockQuantity <= reorderLevel`.
 - Passwords stored hashed (`PasswordUtil`), never plain text.
+- User accounts (added beyond FR1–FR36 at the team's request): a Manager signs up only with the
+  setup code (`app.manager_signup_code` in `db.properties`; blank = sign-up off). Cashier and
+  Storekeeper accounts are created by a Manager and belong to them (`createdByID`); a Manager sees
+  and (de)activates only their own staff and cannot create another Manager. Accounts are
+  deactivated, never deleted; a deactivated account cannot sign in.
 - Every restricted service method starts with `accessControl.requirePermission(user, "<functionName>")`.
 
 ## Role permissions
 | Function | Manager | Cashier | Storekeeper |
 |---|---|---|---|
 | Register product / supplier / supplier price | ✓ | | |
+| Import NEW products from Excel (no edits, no stock) | ✓ | | ✓ |
 | Create / manage purchase order | ✓ | | |
 | Record stock receipt | | | ✓ |
 | Record stock adjustment | | | ✓ |
 | Create / finalize sale, record return | | ✓ | |
 | Search products | ✓ | ✓ | ✓ |
 | Reports | ✓ | | |
+| Create / deactivate own Cashier & Storekeeper accounts | ✓ | | |
+| Change own password (current password required) | ✓ | ✓ | ✓ |
 
 ## Screens (`ui`, match `docs/GUI_Screens`)
 LoginFrame, DashboardFrame, ProductsPanel, SuppliersPanel, PurchaseOrderPanel,
 ReceiveStockPanel, NewSalePanel, SalesReceiptDialog, ReturnsPanel,
-StockAdjustmentsPanel, ReportsPanel. Dashboard shows only menu items allowed for the logged-in role.
+StockAdjustmentsPanel, ReportsPanel, plus ManagerSignUpDialog, StaffPanel, ChangePasswordDialog and
+ImportProductsDialog (no mockups).
+Dashboard shows only menu items allowed for the logged-in role.
 
 ## Coding conventions
 - Classes `PascalCase`, methods/fields `camelCase`, constants `UPPER_SNAKE_CASE`, DB tables `snake_case`.

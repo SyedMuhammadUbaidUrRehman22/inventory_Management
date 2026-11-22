@@ -33,14 +33,21 @@ DROP TABLE IF EXISTS users;
 -- Users: one table for all roles (User is abstract; role = subclass).
 -- Named `users` because USER is a MySQL keyword.
 -- ---------------------------------------------------------------------
+-- Managers sign up themselves (created_by is NULL). Cashier and Storekeeper accounts are
+-- created by a Manager and belong to that Manager (created_by). Accounts are deactivated,
+-- never deleted, because sales and stock movements keep referring to them.
 CREATE TABLE users (
     user_id       INT          NOT NULL AUTO_INCREMENT,
     username      VARCHAR(50)  NOT NULL,
     password_hash VARCHAR(60)  NOT NULL,
     role          VARCHAR(20)  NOT NULL,
+    created_by    INT          NULL,
+    active        BOOLEAN      NOT NULL DEFAULT TRUE,
     PRIMARY KEY (user_id),
     CONSTRAINT uq_users_username UNIQUE (username),
-    CONSTRAINT chk_users_role CHECK (role IN ('MANAGER', 'CASHIER', 'STOREKEEPER'))
+    CONSTRAINT fk_users_created_by FOREIGN KEY (created_by) REFERENCES users (user_id),
+    CONSTRAINT chk_users_role CHECK (role IN ('MANAGER', 'CASHIER', 'STOREKEEPER')),
+    CONSTRAINT chk_users_owner CHECK ((role = 'MANAGER') = (created_by IS NULL))
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -250,7 +257,10 @@ INSERT INTO category (name) VALUES
     ('Household');
 
 -- All three users have the password "1234" (BCrypt-hashed via PasswordUtil.hash).
-INSERT INTO users (username, password_hash, role) VALUES
-    ('manager',     '$2a$10$LPIjVbx3LJAqeUfX3UQLoeb6PpJxPORsQIGxIUZrYDf.jLFEWnl9q', 'MANAGER'),
-    ('cashier',     '$2a$10$9NeTy.EumtcgVU.Xpho5XeMrBfxQPse8RPDWYNrLXNVGQ4Z5/Q8UK', 'CASHIER'),
-    ('storekeeper', '$2a$10$tJP8iezJoD8/xFAA.0zk1enDOClELTnogeZ3togGgLb9.G9gPNV.K', 'STOREKEEPER');
+-- The cashier and storekeeper belong to the seeded manager.
+INSERT INTO users (username, password_hash, role, created_by) VALUES
+    ('manager',     '$2a$10$LPIjVbx3LJAqeUfX3UQLoeb6PpJxPORsQIGxIUZrYDf.jLFEWnl9q', 'MANAGER', NULL);
+SET @seed_manager_id = LAST_INSERT_ID();
+INSERT INTO users (username, password_hash, role, created_by) VALUES
+    ('cashier',     '$2a$10$9NeTy.EumtcgVU.Xpho5XeMrBfxQPse8RPDWYNrLXNVGQ4Z5/Q8UK', 'CASHIER',     @seed_manager_id),
+    ('storekeeper', '$2a$10$tJP8iezJoD8/xFAA.0zk1enDOClELTnogeZ3togGgLb9.G9gPNV.K', 'STOREKEEPER', @seed_manager_id);
