@@ -3,6 +3,8 @@ package com.retailpos.dao;
 import com.retailpos.model.Category;
 import com.retailpos.model.Product;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -55,18 +57,41 @@ public class ProductDaoJdbc extends JdbcDao implements ProductDao {
 
     @Override
     public void insert(Product product) {
-        update("INSERT INTO product (product_code, name, unit, selling_price, reorder_level, status, "
-                        + "current_stock_quantity, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                ps -> {
-                    ps.setString(1, product.getProductCode());
-                    ps.setString(2, product.getName());
-                    ps.setString(3, product.getUnit());
-                    ps.setBigDecimal(4, product.getSellingPrice());
-                    ps.setInt(5, product.getReorderLevel());
-                    ps.setString(6, product.getStatus());
-                    ps.setInt(7, product.getCurrentStockQuantity());
-                    ps.setInt(8, product.getCategory().getCategoryID());
-                });
+        update(INSERT, ps -> bindInsert(ps, product));
+    }
+
+    @Override
+    public void insertAll(List<Product> products) {
+        try (Connection c = connection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement(INSERT)) {
+                for (Product product : products) {
+                    bindInsert(ps, product);
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+                c.commit();
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new DataAccessException("Database error: " + e.getMessage(), e);
+        }
+    }
+
+    private static final String INSERT = "INSERT INTO product (product_code, name, unit, selling_price, "
+            + "reorder_level, status, current_stock_quantity, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+    private static void bindInsert(PreparedStatement ps, Product product) throws SQLException {
+        ps.setString(1, product.getProductCode());
+        ps.setString(2, product.getName());
+        ps.setString(3, product.getUnit());
+        ps.setBigDecimal(4, product.getSellingPrice());
+        ps.setInt(5, product.getReorderLevel());
+        ps.setString(6, product.getStatus());
+        ps.setInt(7, product.getCurrentStockQuantity());
+        ps.setInt(8, product.getCategory().getCategoryID());
     }
 
     @Override

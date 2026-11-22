@@ -79,6 +79,7 @@ class AccessControlTest {
             "managePurchaseOrders,  true,  false, false",
             "generateReports,       true,  false, false",
             "manageStaff,           true,  false, false",
+            "importProducts,        true,  false, true",
             "recordStockReceipt,    false, false, true",
             "recordStockAdjustment, false, false, true",
             "createSale,            false, true,  false",

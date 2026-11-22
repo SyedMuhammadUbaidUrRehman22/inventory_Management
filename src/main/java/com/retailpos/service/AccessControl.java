@@ -41,6 +41,8 @@ public class AccessControl {
     public static final String GENERATE_REPORTS = "generateReports";
     // Manager: create, deactivate and reactivate their own Cashier/Storekeeper accounts
     public static final String MANAGE_STAFF = "manageStaff";
+    // Manager and Storekeeper: add new products from an Excel file (never changes existing products or stock)
+    public static final String IMPORT_PRODUCTS = "importProducts";
     // Storekeeper
     public static final String RECORD_STOCK_RECEIPT = "recordStockReceipt";
     public static final String RECORD_STOCK_ADJUSTMENT = "recordStockAdjustment";
@@ -55,10 +57,11 @@ public class AccessControl {
     private static final Map<Class<? extends User>, Set<String>> PERMISSIONS = Map.of(
             Manager.class, Set.of(REGISTER_PRODUCT, UPDATE_PRODUCT, ADD_CATEGORY,
                     REGISTER_SUPPLIER, UPDATE_SUPPLIER, VIEW_SUPPLIERS, SET_SUPPLIER_PRICE, REMOVE_SUPPLIER_PRICE,
-                    MANAGE_PURCHASE_ORDERS, GENERATE_REPORTS, MANAGE_STAFF, SEARCH_PRODUCTS, CHANGE_OWN_PASSWORD),
+                    MANAGE_PURCHASE_ORDERS, GENERATE_REPORTS, MANAGE_STAFF, IMPORT_PRODUCTS,
+                    SEARCH_PRODUCTS, CHANGE_OWN_PASSWORD),
             Cashier.class, Set.of(CREATE_SALE, RECORD_RETURN, SEARCH_PRODUCTS, CHANGE_OWN_PASSWORD),
-            Storekeeper.class, Set.of(RECORD_STOCK_RECEIPT, RECORD_STOCK_ADJUSTMENT, SEARCH_PRODUCTS,
-                    CHANGE_OWN_PASSWORD));
+            Storekeeper.class, Set.of(RECORD_STOCK_RECEIPT, RECORD_STOCK_ADJUSTMENT, IMPORT_PRODUCTS,
+                    SEARCH_PRODUCTS, CHANGE_OWN_PASSWORD));
 
     /** Roles a Manager may give to the accounts they create. A Manager cannot create another Manager. */
     public static final List<String> STAFF_ROLES = List.of("Cashier", "Storekeeper");

@@ -45,6 +45,20 @@ public class FakeProductDao implements ProductDao {
         products.put(product.getProductCode(), copy(product));
     }
 
+    /** Number of insertAll calls, so tests can check that a rejected import touched nothing. */
+    public int insertAllCalls;
+
+    @Override
+    public void insertAll(List<Product> batch) {
+        insertAllCalls++;
+        for (Product p : batch) {
+            if (products.containsKey(p.getProductCode())) {
+                throw new IllegalStateException("Duplicate key " + p.getProductCode() + " (would roll back)");
+            }
+        }
+        batch.forEach(this::insert);
+    }
+
     @Override
     public void update(Product product) {
         Product stored = products.get(product.getProductCode());

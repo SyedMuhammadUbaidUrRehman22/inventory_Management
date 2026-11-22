@@ -9,6 +9,7 @@ Requirements are FR1–FR36 (see `docs/`). Do not invent features outside them
 - Java 17, Maven
 - UI: Swing + FlatLaf (`FlatLightLaf.setup()` in `main`), NetBeans GUI builder
 - Database: MySQL via plain JDBC (no ORM)
+- Excel import: Apache POI (`poi-ooxml`), used only in `util.SpreadsheetUtil`
 - Tests: JUnit 5
 
 ## Package layout (`com.retailpos`)
@@ -68,6 +69,7 @@ Enums:
 | Function | Manager | Cashier | Storekeeper |
 |---|---|---|---|
 | Register product / supplier / supplier price | ✓ | | |
+| Import NEW products from Excel (no edits, no stock) | ✓ | | ✓ |
 | Create / manage purchase order | ✓ | | |
 | Record stock receipt | | | ✓ |
 | Record stock adjustment | | | ✓ |
@@ -80,7 +82,8 @@ Enums:
 ## Screens (`ui`, match `docs/GUI_Screens`)
 LoginFrame, DashboardFrame, ProductsPanel, SuppliersPanel, PurchaseOrderPanel,
 ReceiveStockPanel, NewSalePanel, SalesReceiptDialog, ReturnsPanel,
-StockAdjustmentsPanel, ReportsPanel, plus ManagerSignUpDialog, StaffPanel and ChangePasswordDialog (no mockups).
+StockAdjustmentsPanel, ReportsPanel, plus ManagerSignUpDialog, StaffPanel, ChangePasswordDialog and
+ImportProductsDialog (no mockups).
 Dashboard shows only menu items allowed for the logged-in role.
 
 ## Coding conventions
