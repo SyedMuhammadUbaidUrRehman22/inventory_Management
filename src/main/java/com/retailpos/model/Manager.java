@@ -9,4 +9,8 @@ public class Manager extends User {
     public Manager(int userID, String username, String passwordHash) {
         super(userID, username, passwordHash);
     }
+
+    public Manager(int userID, String username, String passwordHash, Integer createdByID, boolean active) {
+        super(userID, username, passwordHash, createdByID, active);
+    }
 }

@@ -72,7 +72,9 @@ public class DashboardFrame extends JFrame {
                 new NavItem("New Sale", "New Sale", AccessControl.CREATE_SALE, "Phase 3", null),
                 new NavItem("Returns", "Customer Returns", AccessControl.RECORD_RETURN, "Phase 4", null),
                 new NavItem("Adjustments", "Stock Adjustments", AccessControl.RECORD_STOCK_ADJUSTMENT, "Phase 4", null),
-                new NavItem("Reports", "Reports", AccessControl.GENERATE_REPORTS, "Phase 2", null));
+                new NavItem("Reports", "Reports", AccessControl.GENERATE_REPORTS, "Phase 2", null),
+                new NavItem("Staff", "Staff Accounts", AccessControl.MANAGE_STAFF, null,
+                        () -> new StaffPanel(services, user)));
         for (NavItem item : all) {
             if (item.permission() == null || services.accessControl().hasPermission(user, item.permission())) {
                 items.put(item.label(), item);
@@ -148,6 +150,13 @@ public class DashboardFrame extends JFrame {
         line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
         bar.add(line);
         bar.add(Box.createVerticalStrut(12));
+        if (services.accessControl().hasPermission(user, AccessControl.CHANGE_OWN_PASSWORD)) {
+            JButton changePassword = new JButton("⚿  Change password");
+            styleMenuButton(changePassword);
+            changePassword.addActionListener(e -> ChangePasswordDialog.show(this, services.accessControl(), user));
+            bar.add(changePassword);
+            bar.add(Box.createVerticalStrut(6));
+        }
         JButton signOut = new JButton("⏻  Sign out");
         styleMenuButton(signOut);
         signOut.addActionListener(e -> signOut());

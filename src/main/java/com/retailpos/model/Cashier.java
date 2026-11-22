@@ -9,4 +9,8 @@ public class Cashier extends User {
     public Cashier(int userID, String username, String passwordHash) {
         super(userID, username, passwordHash);
     }
+
+    public Cashier(int userID, String username, String passwordHash, Integer createdByID, boolean active) {
+        super(userID, username, passwordHash, createdByID, active);
+    }
 }

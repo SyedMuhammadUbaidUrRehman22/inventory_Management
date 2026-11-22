@@ -9,4 +9,8 @@ public class Storekeeper extends User {
     public Storekeeper(int userID, String username, String passwordHash) {
         super(userID, username, passwordHash);
     }
+
+    public Storekeeper(int userID, String username, String passwordHash, Integer createdByID, boolean active) {
+        super(userID, username, passwordHash, createdByID, active);
+    }
 }
