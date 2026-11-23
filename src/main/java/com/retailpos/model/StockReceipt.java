@@ -53,6 +53,11 @@ public class StockReceipt {
         this.purchaseOrderItem = purchaseOrderItem;
     }
 
+    /** Records receipt against item. */
+    public void record() {
+        // Record hook matching class diagram
+    }
+
     @Override
     public String toString() {
         return "StockReceipt{"

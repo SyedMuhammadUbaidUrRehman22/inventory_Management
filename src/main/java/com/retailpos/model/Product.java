@@ -93,6 +93,18 @@ public class Product {
         this.category = category;
     }
 
+    /** Low stock = currentStockQuantity <= reorderLevel (FR31). */
+    public boolean isLowStock() {
+        return currentStockQuantity <= reorderLevel;
+    }
+
+    /** Applies a stock movement change. */
+    public void applyStockChange(StockMovement movement) {
+        if (movement != null) {
+            this.currentStockQuantity += movement.getQuantityChange();
+        }
+    }
+
     @Override
     public String toString() {
         return "Product{"

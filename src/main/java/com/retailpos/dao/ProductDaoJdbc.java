@@ -109,6 +109,21 @@ public class ProductDaoJdbc extends JdbcDao implements ProductDao {
                 });
     }
 
+    @Override
+    public void updateStock(String productCode, int newQuantity) {
+        update("UPDATE product SET current_stock_quantity = ? WHERE product_code = ?",
+                ps -> {
+                    ps.setInt(1, newQuantity);
+                    ps.setString(2, productCode);
+                });
+    }
+
+    @Override
+    public List<Product> findLowStock() {
+        return queryList(SELECT + " WHERE p.current_stock_quantity <= p.reorder_level ORDER BY (p.reorder_level - p.current_stock_quantity) DESC, p.product_code ASC",
+                NO_PARAMS, ProductDaoJdbc::map);
+    }
+
     /** Maps a row selected with {@link #PRODUCT_COLUMNS}. */
     static Product map(ResultSet rs) throws SQLException {
         Category category = new Category(rs.getInt("category_id"), rs.getString("category_name"));
