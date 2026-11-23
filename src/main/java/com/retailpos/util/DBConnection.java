@@ -4,6 +4,7 @@ import com.retailpos.dao.DataAccessException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -25,6 +26,7 @@ public final class DBConnection {
     private static final String KEY_PASSWORD = "db.password";
 
     private static final ThreadLocal<Connection> TRANSACTION_CONN = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> ROLLBACK_ONLY = new ThreadLocal<>();
 
     private DBConnection() {
     }
@@ -72,8 +74,12 @@ public final class DBConnection {
         try (Connection real = createRawConnection()) {
             real.setAutoCommit(false);
             TRANSACTION_CONN.set(real);
+            ROLLBACK_ONLY.remove();
             try {
                 T result = action.doInTransaction();
+                if (isRollbackOnly()) {
+                    throw new DataAccessException("Transaction rolled back: a database step inside it failed.", null);
+                }
                 real.commit();
                 return result;
             } catch (Throwable t) {
@@ -88,6 +94,7 @@ public final class DBConnection {
                 throw new DataAccessException("Transaction failed: " + t.getMessage(), t);
             } finally {
                 TRANSACTION_CONN.remove();
+                ROLLBACK_ONLY.remove();
             }
         } catch (SQLException e) {
             throw new DataAccessException("Database error: " + e.getMessage(), e);
@@ -119,17 +126,51 @@ public final class DBConnection {
                 props.getProperty(KEY_PASSWORD, ""));
     }
 
-    /** Wraps a transaction connection so {@code close()} calls inside try-with-resources do not close the underlying connection. */
-    private static Connection wrapTransactionConnection(Connection real) {
+    /**
+     * Wraps the shared transaction connection so DAO code cannot end the transaction early:
+     * <ul>
+     *   <li>{@code close()} is ignored (try-with-resources in DAOs);</li>
+     *   <li>{@code commit()} and {@code setAutoCommit(..)} are ignored, because only
+     *       {@link #inTransaction} may commit;</li>
+     *   <li>{@code rollback()} marks the transaction rollback-only, so {@link #inTransaction}
+     *       rolls back instead of committing even if the DAO's exception is caught.</li>
+     * </ul>
+     * Package-private for tests.
+     */
+    static Connection wrapTransactionConnection(Connection real) {
         return (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
                 (proxy, method, args) -> {
-                    if ("close".equals(method.getName())) {
+                    String name = method.getName();
+                    int argCount = args == null ? 0 : args.length;
+                    if ("close".equals(name)) {
                         return null; // do not close shared transaction connection
                     }
-                    return method.invoke(real, args);
+                    if ("commit".equals(name) && argCount == 0) {
+                        return null; // only inTransaction commits
+                    }
+                    if ("setAutoCommit".equals(name)) {
+                        return null; // auto-commit stays off until inTransaction ends
+                    }
+                    if ("getAutoCommit".equals(name)) {
+                        return false;
+                    }
+                    if ("rollback".equals(name) && argCount == 0) {
+                        ROLLBACK_ONLY.set(Boolean.TRUE);
+                        return null; // inTransaction performs the real rollback
+                    }
+                    try {
+                        return method.invoke(real, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
                 });
+    }
+
+    /** True if DAO code inside the current transaction asked for a rollback. */
+    static boolean isRollbackOnly() {
+        return Boolean.TRUE.equals(ROLLBACK_ONLY.get());
     }
 
     /** Returns true if {@code db.properties} exists on the classpath. */

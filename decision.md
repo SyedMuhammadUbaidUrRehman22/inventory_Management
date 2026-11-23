@@ -1,7 +1,7 @@
 # Decisions
 
 Every design and implementation decision made so far, with the reason for it.
-Last updated: 2026-11-22 (Phase 1, user accounts, Excel import).
+Last updated: 2026-11-23 (Phase 1, user accounts, Excel import, Phase 2, transaction guard).
 
 **[Team]** marks decisions the team asked for or chose. Everything else is an implementation choice made while
 building. Those follow CLAUDE.md where it gives an answer and can be changed if the team prefers otherwise.
@@ -372,3 +372,18 @@ If any step fails, all changes roll back atomically.
 - Reports log an entry in the `report` table on generation.
 - Printing (FR36) uses standard Swing `JTable.print(...)` with styled headers and footers.
 
+
+**D80. Code inside a transaction cannot commit or roll back on its own.**
+Inside `DBConnection.inTransaction`, every DAO gets the same shared connection, wrapped so DAO code cannot end
+the transaction early:
+- `close()`, `commit()` and `setAutoCommit(..)` are ignored, and `getAutoCommit()` returns `false`.
+  Only `inTransaction` commits.
+- `rollback()` marks the transaction *rollback-only*. When the transaction finishes, `inTransaction` rolls back
+  and throws a `DataAccessException` instead of committing.
+
+A DAO call made outside a transaction still gets a normal connection, so `ProductDaoJdbc.insertAll` (Excel
+import, D60) keeps committing its batch itself.
+*Why:* before this change only `close()` was ignored. A DAO method that manages its own transaction, like
+`insertAll`, would have committed part of the work early if it ran inside `inTransaction`, breaking the
+"commit both or roll back both" rule for stock changes. Nothing does this yet, but Phase 3 (sales, returns,
+adjustments) will add more transactions, so the guard went in first. Covered by `DBConnectionTest`.
