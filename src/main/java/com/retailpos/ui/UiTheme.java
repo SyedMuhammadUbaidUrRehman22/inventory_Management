@@ -28,6 +28,7 @@ import java.awt.LayoutManager;
 final class UiTheme {
 
     static final Color PRIMARY = new Color(0x2563EB);
+    static final Color SECONDARY = Color.WHITE;
     static final Color SUCCESS = new Color(0x16A34A);
     static final Color DANGER = new Color(0xDC2626);
     static final Color SIDEBAR = new Color(0x0F172A);
@@ -86,6 +87,10 @@ final class UiTheme {
         return filledButton(text, SUCCESS, "#15803D", "#166534");
     }
 
+    static JButton dangerButton(String text) {
+        return filledButton(text, DANGER, "#B91C1C", "#991B1B");
+    }
+
     private static JButton filledButton(String text, Color background, String hover, String pressed) {
         JButton b = new JButton(text);
         b.setBackground(background);
@@ -105,6 +110,10 @@ final class UiTheme {
         b.putClientProperty(FlatClientProperties.STYLE,
                 "arc: 8; borderColor: #CBD5E1; focusWidth: 0; innerFocusWidth: 0; margin: 8,18,8,18");
         return b;
+    }
+
+    static JTextField textField() {
+        return textField("");
     }
 
     static JTextField textField(String placeholder) {
@@ -139,6 +148,12 @@ final class UiTheme {
         component.setAlignmentX(Component.LEFT_ALIGNMENT);
         component.setMaximumSize(new Dimension(Integer.MAX_VALUE, component.getPreferredSize().height));
         return component;
+    }
+
+    static JTable table(javax.swing.table.DefaultTableModel model) {
+        JTable table = new JTable(model);
+        styleTable(table);
+        return table;
     }
 
     static void styleTable(JTable table) {

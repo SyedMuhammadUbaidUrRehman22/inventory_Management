@@ -63,6 +63,32 @@ public class PurchaseOrderItem {
         this.product = product;
     }
 
+    /** Calculates the line total: orderedQuantity * purchasePrice. */
+    public BigDecimal lineTotal() {
+        if (purchasePrice == null) {
+            return BigDecimal.ZERO;
+        }
+        return purchasePrice.multiply(BigDecimal.valueOf(orderedQuantity));
+    }
+
+    /** Unreceived quantity for this line (ordered - received, minimum 0). */
+    public int getRemainingQuantity() {
+        return Math.max(0, orderedQuantity - receivedQuantity);
+    }
+
+    /** Records a delivery against this line, increasing receivedQuantity. */
+    public StockReceipt recordReceipt(int quantity, java.time.LocalDate receiptDate) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero.");
+        }
+        if (receivedQuantity + quantity > orderedQuantity) {
+            throw new IllegalArgumentException("Cannot receive more than ordered ("
+                    + (orderedQuantity - receivedQuantity) + " remaining).");
+        }
+        this.receivedQuantity += quantity;
+        return new StockReceipt(0, receiptDate, quantity, this);
+    }
+
     @Override
     public String toString() {
         return "PurchaseOrderItem{"

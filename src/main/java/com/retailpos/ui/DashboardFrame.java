@@ -67,12 +67,15 @@ public class DashboardFrame extends JFrame {
                         () -> new ProductsPanel(services, user)),
                 new NavItem("Suppliers", "Supplier Management", AccessControl.VIEW_SUPPLIERS, null,
                         () -> new SuppliersPanel(services, user)),
-                new NavItem("Purchase Orders", "Purchase Orders", AccessControl.MANAGE_PURCHASE_ORDERS, "Phase 2", null),
-                new NavItem("Receive Stock", "Receive Stock", AccessControl.RECORD_STOCK_RECEIPT, "Phase 2", null),
+                new NavItem("Purchase Orders", "Purchase Orders", AccessControl.MANAGE_PURCHASE_ORDERS, null,
+                        () -> new PurchaseOrderPanel(services, user)),
+                new NavItem("Receive Stock", "Receive Stock", AccessControl.RECORD_STOCK_RECEIPT, null,
+                        () -> new ReceiveStockPanel(services, user)),
                 new NavItem("New Sale", "New Sale", AccessControl.CREATE_SALE, "Phase 3", null),
                 new NavItem("Returns", "Customer Returns", AccessControl.RECORD_RETURN, "Phase 4", null),
                 new NavItem("Adjustments", "Stock Adjustments", AccessControl.RECORD_STOCK_ADJUSTMENT, "Phase 4", null),
-                new NavItem("Reports", "Reports", AccessControl.GENERATE_REPORTS, "Phase 2", null),
+                new NavItem("Reports", "Reports", AccessControl.GENERATE_REPORTS, null,
+                        () -> new ReportsPanel(services, user)),
                 new NavItem("Staff", "Staff Accounts", AccessControl.MANAGE_STAFF, null,
                         () -> new StaffPanel(services, user)));
         for (NavItem item : all) {

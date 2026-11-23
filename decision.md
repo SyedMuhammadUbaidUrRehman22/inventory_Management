@@ -336,3 +336,39 @@ app before distribution (D65).
 
 **D74.** The new screens and dialogs were checked with tests and screenshots, but not yet by clicking through the
 running app.
+
+---
+
+## 14. Phase 2: Purchasing and stock receiving (FR7–FR13, FR31, FR34, FR36)
+
+**D75. PurchaseOrder and StockReceiving layer structure.**
+- Domain models: `PurchaseOrder`, `PurchaseOrderItem`, `StockReceipt`, `StockMovement`, `Report`.
+- DAOs: `PurchaseOrderDao`, `StockReceiptDao`, `StockMovementDao`, `ReportDao` with JDBC implementations.
+- Services: `PurchaseService` (Manager: create/order/cancel POs), `StockService` (Storekeeper: receive stock and audit movements), `ReportService` (Manager: low-stock and supplier purchase reports).
+- UI: `PurchaseOrderPanel` (matching `05_Create_Purchase_Order.svg`), `ReceiveStockPanel` (matching `06_Receive_Stock.svg`), `ReportsPanel` (matching `11_Reports.svg`).
+
+**D76. Atomic stock update transactions.**
+Every stock increase from a receipt executes in a single database transaction (`DBConnection.inTransaction`):
+1. Records `StockReceipt`
+2. Updates `PurchaseOrderItem.received_quantity`
+3. Increments `Product.current_stock_quantity`
+4. Inserts `StockMovement` (type `RECEIPT`, quantity `+qty`, balanceAfter = new stock, reference `PO-#/RC-#`)
+5. Updates `PurchaseOrder` status (`PARTIALLY_RECEIVED` or `RECEIVED`)
+If any step fails, all changes roll back atomically.
+
+**D77. Purchase order lifecycle (FR10).**
+- A PO starts as `PREPARED` or `ORDERED`.
+- A `PREPARED` order can be marked as `ORDERED` when officially placed with the supplier.
+- An order can only be cancelled before any stock receipt has been recorded (`received_quantity == 0` for all lines).
+- Receiving stock automatically transitions status to `PARTIALLY_RECEIVED` or `RECEIVED`.
+
+**D78. Over-receipt protection (FR11, FR12).**
+- Quantities entered during receipt are validated to never exceed `ordered_quantity - received_quantity`.
+- Only actual received quantities increase `current_stock_quantity` (FR12).
+
+**D79. Reports and Printing (FR31, FR34, FR36).**
+- Low-stock report filters products where `current_stock_quantity <= reorder_level` and computes deficit.
+- Supplier-wise purchase report groups and aggregates purchase orders by supplier and date range.
+- Reports log an entry in the `report` table on generation.
+- Printing (FR36) uses standard Swing `JTable.print(...)` with styled headers and footers.
+

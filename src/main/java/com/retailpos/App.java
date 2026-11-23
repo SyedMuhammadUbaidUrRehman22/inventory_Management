@@ -5,10 +5,17 @@ import com.formdev.flatlaf.FlatLightLaf;
 import com.retailpos.dao.CategoryDaoJdbc;
 import com.retailpos.dao.ProductDaoJdbc;
 import com.retailpos.dao.ProductSupplierDaoJdbc;
+import com.retailpos.dao.PurchaseOrderDaoJdbc;
+import com.retailpos.dao.ReportDaoJdbc;
+import com.retailpos.dao.StockMovementDaoJdbc;
+import com.retailpos.dao.StockReceiptDaoJdbc;
 import com.retailpos.dao.SupplierDaoJdbc;
 import com.retailpos.dao.UserDaoJdbc;
 import com.retailpos.service.AccessControl;
 import com.retailpos.service.ProductCatalog;
+import com.retailpos.service.PurchaseService;
+import com.retailpos.service.ReportService;
+import com.retailpos.service.StockService;
 import com.retailpos.ui.AppServices;
 import com.retailpos.ui.LoginFrame;
 import com.retailpos.util.AppSettings;
@@ -42,10 +49,27 @@ public final class App {
 
     /** Builds the service layer on top of the JDBC DAOs. */
     public static AppServices createServices() {
-        AccessControl accessControl = new AccessControl(new UserDaoJdbc(),
+        UserDaoJdbc userDao = new UserDaoJdbc();
+        ProductDaoJdbc productDao = new ProductDaoJdbc();
+        CategoryDaoJdbc categoryDao = new CategoryDaoJdbc();
+        SupplierDaoJdbc supplierDao = new SupplierDaoJdbc();
+        ProductSupplierDaoJdbc productSupplierDao = new ProductSupplierDaoJdbc();
+        PurchaseOrderDaoJdbc purchaseOrderDao = new PurchaseOrderDaoJdbc();
+        StockReceiptDaoJdbc stockReceiptDao = new StockReceiptDaoJdbc();
+        StockMovementDaoJdbc stockMovementDao = new StockMovementDaoJdbc();
+        ReportDaoJdbc reportDao = new ReportDaoJdbc();
+
+        AccessControl accessControl = new AccessControl(userDao,
                 AppSettings.get(AppSettings.MANAGER_SIGNUP_CODE));
-        ProductCatalog productCatalog = new ProductCatalog(accessControl, new ProductDaoJdbc(),
-                new CategoryDaoJdbc(), new SupplierDaoJdbc(), new ProductSupplierDaoJdbc());
-        return new AppServices(accessControl, productCatalog);
+        ProductCatalog productCatalog = new ProductCatalog(accessControl, productDao,
+                categoryDao, supplierDao, productSupplierDao);
+        PurchaseService purchaseService = new PurchaseService(accessControl, purchaseOrderDao,
+                supplierDao, productDao, productSupplierDao);
+        StockService stockService = new StockService(accessControl, purchaseOrderDao,
+                productDao, stockReceiptDao, stockMovementDao);
+        ReportService reportService = new ReportService(accessControl, productDao,
+                purchaseOrderDao, supplierDao, reportDao);
+
+        return new AppServices(accessControl, productCatalog, purchaseService, stockService, reportService);
     }
 }

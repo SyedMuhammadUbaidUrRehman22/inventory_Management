@@ -31,4 +31,14 @@ public interface ProductDao {
      * through stock movements.
      */
     void update(Product product);
+
+    /**
+     * Updates only currentStockQuantity. Called inside stock movement transactions (receipt, sale, return, adjustment).
+     */
+    void updateStock(String productCode, int newQuantity);
+
+    /**
+     * Returns products where currentStockQuantity <= reorderLevel (FR31).
+     */
+    List<Product> findLowStock();
 }

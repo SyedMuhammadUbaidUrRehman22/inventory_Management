@@ -67,6 +67,25 @@ public class FakeProductDao implements ProductDao {
         products.put(product.getProductCode(), updated);
     }
 
+    @Override
+    public void updateStock(String productCode, int newQuantity) {
+        Product stored = products.get(productCode);
+        if (stored != null) {
+            stored.setCurrentStockQuantity(newQuantity);
+        }
+    }
+
+    @Override
+    public List<Product> findLowStock() {
+        List<Product> result = new ArrayList<>();
+        for (Product p : products.values()) {
+            if (p.getCurrentStockQuantity() <= p.getReorderLevel()) {
+                result.add(copy(p));
+            }
+        }
+        return result;
+    }
+
     /** Test helper: sets stock directly, as receipts would in later phases. */
     public void setStock(String productCode, int quantity) {
         products.get(productCode).setCurrentStockQuantity(quantity);
