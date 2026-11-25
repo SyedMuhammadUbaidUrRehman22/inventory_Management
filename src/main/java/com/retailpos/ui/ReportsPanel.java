@@ -4,6 +4,7 @@ import com.retailpos.model.Supplier;
 import com.retailpos.model.User;
 import com.retailpos.service.ReportService;
 import com.retailpos.service.ReportService.LowStockReport;
+import com.retailpos.service.ReportService.SalesReport;
 import com.retailpos.service.ReportService.SupplierWisePurchaseReport;
 import com.retailpos.util.BusinessException;
 import com.retailpos.util.FormatUtil;
@@ -33,7 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Screen for generating and printing store reports (FR31, FR34, FR36).
+ * Screen for generating and printing store reports (FR31, FR33, FR34, FR36).
  * Matches mockups in {@code docs/GUI_Screens/11_Reports.svg}.
  */
 public class ReportsPanel extends JPanel implements Refreshable {
@@ -43,12 +44,16 @@ public class ReportsPanel extends JPanel implements Refreshable {
 
     private static final String TYPE_LOW_STOCK = "LOW_STOCK";
     private static final String TYPE_SUPPLIER_PURCHASES = "SUPPLIER_PURCHASES";
+    private static final String TYPE_SALES = "SALES";
+    private static final String VIEW_EACH_SALE = "Each sale";
+    private static final String VIEW_BY_DAY = "By day";
 
     private String activeReportType = TYPE_LOW_STOCK;
 
     // Report selection buttons
     private final JButton lowStockBtn = UiTheme.primaryButton("Low-stock products");
     private final JButton supplierPurchasesBtn = UiTheme.secondaryButton("Supplier-wise purchases");
+    private final JButton salesBtn = UiTheme.secondaryButton("Sales (daily / date range)");
 
     // Container for dynamic report view
     private final CardLayout reportCardLayout = new CardLayout();
@@ -73,6 +78,22 @@ public class ReportsPanel extends JPanel implements Refreshable {
     private final JTable supplierTable;
     private final JLabel supplierFooter = UiTheme.label("", Font.PLAIN, 12f, UiTheme.MUTED);
 
+    // ---- Sales view components (FR33) ----
+    private final JTextField salesFromField = UiTheme.textField();
+    private final JTextField salesToField = UiTheme.textField();
+    private final JComboBox<String> salesViewCombo = new JComboBox<>(new String[]{VIEW_EACH_SALE, VIEW_BY_DAY});
+    private final JLabel netSalesLabel = UiTheme.label("Rs 0", Font.BOLD, 22f, UiTheme.PRIMARY);
+    private final JLabel salesCountLabel = UiTheme.label("0", Font.BOLD, 22f, UiTheme.TEXT);
+    private final JLabel unitsSoldLabel = UiTheme.label("0", Font.BOLD, 22f, new Color(217, 119, 6));
+    private final JLabel discountsLabel = UiTheme.label("Rs 0", Font.BOLD, 22f, UiTheme.DANGER);
+    private final DefaultTableModel salesTableModel;
+    private final JTable salesTable;
+    private final DefaultTableModel dailyTableModel;
+    private final JTable dailyTable;
+    private final CardLayout salesViewLayout = new CardLayout();
+    private final JPanel salesViewCards = new JPanel(salesViewLayout);
+    private final JLabel salesFooter = UiTheme.label("", Font.PLAIN, 12f, UiTheme.MUTED);
+
     public ReportsPanel(AppServices services, User user) {
         super(new BorderLayout(20, 0));
         this.services = services;
@@ -95,6 +116,19 @@ public class ReportsPanel extends JPanel implements Refreshable {
         };
         supplierTable = UiTheme.table(supplierTableModel);
 
+        salesTableModel = new DefaultTableModel(
+                new Object[]{"Sale", "Date / time", "Cashier", "Lines", "Units", "Subtotal", "Discount", "Final amount"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int col) { return false; }
+        };
+        salesTable = UiTheme.table(salesTableModel);
+        dailyTableModel = new DefaultTableModel(
+                new Object[]{"Date", "Sales", "Units", "Subtotal", "Discount", "Net sales"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int col) { return false; }
+        };
+        dailyTable = UiTheme.table(dailyTableModel);
+
         alignNumericColumns();
 
         // 1. Left Nav Sidebar
@@ -104,6 +138,7 @@ public class ReportsPanel extends JPanel implements Refreshable {
         reportCards.setOpaque(false);
         reportCards.add(buildLowStockCard(), TYPE_LOW_STOCK);
         reportCards.add(buildSupplierPurchasesCard(), TYPE_SUPPLIER_PURCHASES);
+        reportCards.add(buildSalesCard(), TYPE_SALES);
         add(reportCards, BorderLayout.CENTER);
 
         refresh();
@@ -122,6 +157,13 @@ public class ReportsPanel extends JPanel implements Refreshable {
         supplierTable.getColumnModel().getColumn(5).setCellRenderer(rightRenderer);
         supplierTable.getColumnModel().getColumn(6).setCellRenderer(rightRenderer);
         supplierTable.getColumnModel().getColumn(7).setCellRenderer(rightRenderer);
+
+        for (int col = 3; col <= 7; col++) {
+            salesTable.getColumnModel().getColumn(col).setCellRenderer(rightRenderer);
+        }
+        for (int col = 1; col <= 5; col++) {
+            dailyTable.getColumnModel().getColumn(col).setCellRenderer(rightRenderer);
+        }
     }
 
     private JPanel buildLeftSidebar() {
@@ -143,14 +185,14 @@ public class ReportsPanel extends JPanel implements Refreshable {
         list.add(reportNavButton(lowStockBtn, "Low-stock products", "FR31 · at or below reorder level", () -> switchReport(TYPE_LOW_STOCK)));
         list.add(Box.createVerticalStrut(10));
         list.add(reportNavButton(supplierPurchasesBtn, "Supplier-wise purchases", "FR34 · purchase orders by supplier", () -> switchReport(TYPE_SUPPLIER_PURCHASES)));
+        list.add(Box.createVerticalStrut(10));
+        list.add(reportNavButton(salesBtn, "Sales (daily / date range)", "FR33 · completed sales and discounts", () -> switchReport(TYPE_SALES)));
         list.add(Box.createVerticalStrut(16));
 
         // Placeholders for subsequent phases (as depicted in mockup)
         list.add(disabledNavButton("Current inventory", "FR32 · Phase 4"));
         list.add(Box.createVerticalStrut(8));
         list.add(disabledNavButton("Stock movements", "FR32 · Phase 4"));
-        list.add(Box.createVerticalStrut(8));
-        list.add(disabledNavButton("Sales (daily / date range)", "FR33 · Phase 3"));
         list.add(Box.createVerticalStrut(8));
         list.add(disabledNavButton("Product-wise sales", "FR35 · Phase 4"));
 
@@ -186,20 +228,23 @@ public class ReportsPanel extends JPanel implements Refreshable {
 
     private void switchReport(String type) {
         activeReportType = type;
-        if (type.equals(TYPE_LOW_STOCK)) {
-            lowStockBtn.setBackground(UiTheme.PRIMARY);
-            lowStockBtn.setForeground(Color.WHITE);
-            supplierPurchasesBtn.setBackground(UiTheme.SECONDARY);
-            supplierPurchasesBtn.setForeground(UiTheme.TEXT);
-            reportCardLayout.show(reportCards, TYPE_LOW_STOCK);
-            loadLowStockReport();
-        } else {
-            supplierPurchasesBtn.setBackground(UiTheme.PRIMARY);
-            supplierPurchasesBtn.setForeground(Color.WHITE);
-            lowStockBtn.setBackground(UiTheme.SECONDARY);
-            lowStockBtn.setForeground(UiTheme.TEXT);
-            reportCardLayout.show(reportCards, TYPE_SUPPLIER_PURCHASES);
-            loadSupplierPurchasesReport();
+        styleNavButton(lowStockBtn, type.equals(TYPE_LOW_STOCK));
+        styleNavButton(supplierPurchasesBtn, type.equals(TYPE_SUPPLIER_PURCHASES));
+        styleNavButton(salesBtn, type.equals(TYPE_SALES));
+        reportCardLayout.show(reportCards, type);
+        loadActiveReport();
+    }
+
+    private static void styleNavButton(JButton button, boolean selected) {
+        button.setBackground(selected ? UiTheme.PRIMARY : UiTheme.SECONDARY);
+        button.setForeground(selected ? Color.WHITE : UiTheme.TEXT);
+    }
+
+    private void loadActiveReport() {
+        switch (activeReportType) {
+            case TYPE_LOW_STOCK -> loadLowStockReport();
+            case TYPE_SUPPLIER_PURCHASES -> loadSupplierPurchasesReport();
+            default -> loadSalesReport();
         }
     }
 
@@ -318,6 +363,137 @@ public class ReportsPanel extends JPanel implements Refreshable {
         return card;
     }
 
+    // =====================================================================
+    // Sales Card (FR33)
+    // =====================================================================
+
+    private JPanel buildSalesCard() {
+        JPanel card = UiTheme.card(new BorderLayout(0, 14));
+
+        JPanel top = new JPanel(new BorderLayout(0, 10));
+        top.setOpaque(false);
+
+        JPanel titles = new JPanel();
+        titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
+        titles.setOpaque(false);
+        titles.add(UiTheme.title("Sales report (FR33)"));
+        titles.add(Box.createVerticalStrut(2));
+        titles.add(UiTheme.label("Completed sales for one day or a date range. Leave both dates empty for today.",
+                Font.PLAIN, 12f, UiTheme.MUTED));
+        top.add(titles, BorderLayout.NORTH);
+
+        JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        filterRow.setOpaque(false);
+        filterRow.add(UiTheme.label("From:", Font.BOLD, 12f, UiTheme.TEXT));
+        salesFromField.setPreferredSize(new Dimension(110, 32));
+        filterRow.add(salesFromField);
+        filterRow.add(UiTheme.label("To:", Font.BOLD, 12f, UiTheme.TEXT));
+        salesToField.setPreferredSize(new Dimension(110, 32));
+        filterRow.add(salesToField);
+        filterRow.add(UiTheme.label("View:", Font.BOLD, 12f, UiTheme.TEXT));
+        salesViewCombo.setPreferredSize(new Dimension(120, 32));
+        filterRow.add(salesViewCombo);
+
+        JButton todayBtn = UiTheme.secondaryButton("Today");
+        JButton generateBtn = UiTheme.primaryButton("Generate");
+        JButton printBtn = UiTheme.secondaryButton("Print report (FR36)");
+        filterRow.add(todayBtn);
+        filterRow.add(generateBtn);
+        filterRow.add(printBtn);
+
+        todayBtn.addActionListener(e -> {
+            String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+            salesFromField.setText(today);
+            salesToField.setText(today);
+            loadSalesReport();
+        });
+        generateBtn.addActionListener(e -> loadSalesReport());
+        salesViewCombo.addActionListener(e -> salesViewLayout.show(salesViewCards, (String) salesViewCombo.getSelectedItem()));
+        printBtn.addActionListener(e -> {
+            boolean byDay = VIEW_BY_DAY.equals(salesViewCombo.getSelectedItem());
+            services.reportService().printReport(user, byDay ? dailyTable : salesTable,
+                    byDay ? "Daily Sales Report" : "Sales Report", salesFooter.getText());
+        });
+
+        top.add(filterRow, BorderLayout.CENTER);
+        card.add(top, BorderLayout.NORTH);
+
+        JPanel center = new JPanel(new BorderLayout(0, 14));
+        center.setOpaque(false);
+
+        JPanel statsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        statsRow.setOpaque(false);
+        statsRow.add(statBox("Net sales", netSalesLabel, UiTheme.PRIMARY));
+        statsRow.add(statBox("Sales", salesCountLabel, UiTheme.TEXT));
+        statsRow.add(statBox("Units sold", unitsSoldLabel, new Color(217, 119, 6)));
+        statsRow.add(statBox("Discounts given", discountsLabel, UiTheme.DANGER));
+        center.add(statsRow, BorderLayout.NORTH);
+
+        salesViewCards.setOpaque(false);
+        salesViewCards.add(new JScrollPane(salesTable), VIEW_EACH_SALE);
+        salesViewCards.add(new JScrollPane(dailyTable), VIEW_BY_DAY);
+        center.add(salesViewCards, BorderLayout.CENTER);
+        card.add(center, BorderLayout.CENTER);
+
+        card.add(salesFooter, BorderLayout.SOUTH);
+        return card;
+    }
+
+    private void loadSalesReport() {
+        LocalDate from;
+        LocalDate to;
+        try {
+            String fromStr = salesFromField.getText().trim();
+            String toStr = salesToField.getText().trim();
+            from = fromStr.isEmpty() ? null : LocalDate.parse(fromStr);
+            to = toStr.isEmpty() ? null : LocalDate.parse(toStr);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Dates must be in YYYY-MM-DD format.", "Validation", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            SalesReport report = services.reportService().generateSalesReport(user, from, to);
+            DateTimeFormatter when = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
+
+            salesTableModel.setRowCount(0);
+            for (ReportService.SalesReportRow row : report.rows()) {
+                salesTableModel.addRow(new Object[]{
+                        FormatUtil.saleId(row.saleID()),
+                        row.dateTime().format(when),
+                        row.cashier(),
+                        row.lineCount(),
+                        row.unitsSold(),
+                        FormatUtil.money(row.subtotal()),
+                        FormatUtil.money(row.discount()),
+                        FormatUtil.money(row.finalAmount())
+                });
+            }
+            dailyTableModel.setRowCount(0);
+            for (ReportService.DailySalesRow day : report.days()) {
+                dailyTableModel.addRow(new Object[]{
+                        day.date(),
+                        day.saleCount(),
+                        day.unitsSold(),
+                        FormatUtil.money(day.subtotal()),
+                        FormatUtil.money(day.discount()),
+                        FormatUtil.money(day.netSales())
+                });
+            }
+
+            netSalesLabel.setText(FormatUtil.money(report.totalNetSales()));
+            salesCountLabel.setText(String.valueOf(report.totalSales()));
+            unitsSoldLabel.setText(String.valueOf(report.totalUnits()));
+            discountsLabel.setText(FormatUtil.money(report.totalDiscount()));
+            String period = report.fromDate().equals(report.toDate())
+                    ? report.fromDate().toString() : report.fromDate() + " to " + report.toDate();
+            salesFooter.setText("Sales for " + period + " · generated " + report.generatedAt().format(when)
+                    + " by " + report.generatedBy());
+        } catch (BusinessException be) {
+            JOptionPane.showMessageDialog(this, be.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private static JPanel statBox(String title, JLabel valueLabel, Color accent) {
         JPanel box = UiTheme.card(new BorderLayout(0, 4));
         box.setPreferredSize(new Dimension(220, 75));
@@ -420,11 +596,7 @@ public class ReportsPanel extends JPanel implements Refreshable {
             supplierFilterCombo.addItem(new SupplierFilterItem(s, s.getName()));
         }
 
-        if (activeReportType.equals(TYPE_LOW_STOCK)) {
-            loadLowStockReport();
-        } else {
-            loadSupplierPurchasesReport();
-        }
+        loadActiveReport();
     }
 
     private record SupplierFilterItem(Supplier supplier, String display) {

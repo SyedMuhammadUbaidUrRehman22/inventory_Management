@@ -63,6 +63,11 @@ public class SaleItem {
         this.product = product;
     }
 
+    /** FR18: line total = quantity x selling price. */
+    public void recalculateLineTotal() {
+        lineTotal = sellingPrice.multiply(BigDecimal.valueOf(quantity));
+    }
+
     @Override
     public String toString() {
         return "SaleItem{"

@@ -3,11 +3,13 @@ package com.retailpos.service;
 import com.retailpos.dao.ProductDao;
 import com.retailpos.dao.PurchaseOrderDao;
 import com.retailpos.dao.ReportDao;
+import com.retailpos.dao.SaleDao;
 import com.retailpos.dao.SupplierDao;
 import com.retailpos.model.Product;
 import com.retailpos.model.PurchaseOrder;
 import com.retailpos.model.PurchaseOrderItem;
 import com.retailpos.model.Report;
+import com.retailpos.model.Sale;
 import com.retailpos.model.User;
 import com.retailpos.util.BusinessException;
 
@@ -20,6 +22,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Service generating inventory, purchase, and sales reports (FR31, FR34, FR36).
@@ -32,10 +36,19 @@ public class ReportService {
     private final PurchaseOrderDao purchaseOrderDao;
     private final SupplierDao supplierDao;
     private final ReportDao reportDao;
+    private final SaleDao saleDao;
 
+    /** Reports that need sales data (FR33) are not available through this constructor. */
     public ReportService(AccessControl accessControl, ProductDao productDao,
                          PurchaseOrderDao purchaseOrderDao, SupplierDao supplierDao,
                          ReportDao reportDao) {
+        this(accessControl, productDao, purchaseOrderDao, supplierDao, reportDao, null);
+    }
+
+    public ReportService(AccessControl accessControl, ProductDao productDao,
+                         PurchaseOrderDao purchaseOrderDao, SupplierDao supplierDao,
+                         ReportDao reportDao, SaleDao saleDao) {
+        this.saleDao = saleDao;
         this.accessControl = accessControl;
         this.productDao = productDao;
         this.purchaseOrderDao = purchaseOrderDao;
@@ -201,6 +214,124 @@ public class ReportService {
                 totalReceivedUnits,
                 rows
         );
+    }
+
+    // =====================================================================
+    // FR33: Daily and date-range sales report
+    // =====================================================================
+
+    /** One completed sale in the report. */
+    public record SalesReportRow(
+            int saleID,
+            LocalDateTime dateTime,
+            String cashier,
+            int lineCount,
+            int unitsSold,
+            BigDecimal subtotal,
+            BigDecimal discount,
+            BigDecimal finalAmount
+    ) {
+    }
+
+    /** Totals for one calendar day. */
+    public record DailySalesRow(
+            LocalDate date,
+            int saleCount,
+            int unitsSold,
+            BigDecimal subtotal,
+            BigDecimal discount,
+            BigDecimal netSales
+    ) {
+    }
+
+    public record SalesReport(
+            LocalDateTime generatedAt,
+            String generatedBy,
+            LocalDate fromDate,
+            LocalDate toDate,
+            int totalSales,
+            int totalUnits,
+            BigDecimal totalSubtotal,
+            BigDecimal totalDiscount,
+            BigDecimal totalNetSales,
+            List<SalesReportRow> rows,
+            List<DailySalesRow> days
+    ) {
+    }
+
+    /** FR33: Sales report for a single day. */
+    public SalesReport generateDailySalesReport(User user, LocalDate date) {
+        return generateSalesReport(user, date, date);
+    }
+
+    /**
+     * FR33: Sales report over a date range, counting COMPLETED sales only.
+     * If both dates are empty the report is for today; if only one is given the report is for that single day.
+     * Net sales are the final amounts (after discounts).
+     */
+    public SalesReport generateSalesReport(User user, LocalDate fromDate, LocalDate toDate) {
+        accessControl.requirePermission(user, AccessControl.GENERATE_REPORTS);
+        if (saleDao == null) {
+            throw new BusinessException("Sales reports are not available.");
+        }
+        if (fromDate == null && toDate == null) {
+            fromDate = LocalDate.now();
+            toDate = fromDate;
+        } else if (fromDate == null) {
+            fromDate = toDate;
+        } else if (toDate == null) {
+            toDate = fromDate;
+        }
+        if (fromDate.isAfter(toDate)) {
+            throw new BusinessException("From date cannot be after To date.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Sale> sales = saleDao.findCompleted(fromDate, toDate);
+
+        List<SalesReportRow> rows = new ArrayList<>();
+        Map<LocalDate, DailyTotals> perDay = new TreeMap<>();
+        BigDecimal totalSubtotal = BigDecimal.ZERO;
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+        BigDecimal totalNet = BigDecimal.ZERO;
+        int totalUnits = 0;
+
+        for (Sale sale : sales) {
+            int units = sale.getTotalQuantity();
+            rows.add(new SalesReportRow(sale.getSaleID(), sale.getDateTime(),
+                    sale.getCashier() == null ? "" : sale.getCashier().getUsername(),
+                    sale.getItems().size(), units, sale.getSubtotal(), sale.getDiscount(), sale.getFinalAmount()));
+            perDay.computeIfAbsent(sale.getDateTime().toLocalDate(), d -> new DailyTotals()).add(sale, units);
+            totalSubtotal = totalSubtotal.add(sale.getSubtotal());
+            totalDiscount = totalDiscount.add(sale.getDiscount());
+            totalNet = totalNet.add(sale.getFinalAmount());
+            totalUnits += units;
+        }
+
+        List<DailySalesRow> days = new ArrayList<>();
+        perDay.forEach((date, t) -> days.add(new DailySalesRow(date, t.count, t.units, t.subtotal, t.discount, t.net)));
+
+        reportDao.insert(new Report(0, "SALES", now));
+
+        return new SalesReport(now, user.getUsername(), fromDate, toDate, rows.size(), totalUnits,
+                totalSubtotal, totalDiscount, totalNet, rows, days);
+    }
+
+    /** Running totals for one day of the sales report. */
+    private static final class DailyTotals {
+        private int count;
+        private int units;
+        private BigDecimal subtotal = BigDecimal.ZERO;
+        private BigDecimal discount = BigDecimal.ZERO;
+        private BigDecimal net = BigDecimal.ZERO;
+
+        void add(Sale sale, int saleUnits) {
+            count++;
+            units += saleUnits;
+            subtotal = subtotal.add(sale.getSubtotal());
+            discount = discount.add(sale.getDiscount());
+            net = net.add(sale.getFinalAmount());
+        }
     }
 
     // =====================================================================

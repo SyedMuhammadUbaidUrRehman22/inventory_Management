@@ -7,6 +7,8 @@ import com.retailpos.dao.ProductDaoJdbc;
 import com.retailpos.dao.ProductSupplierDaoJdbc;
 import com.retailpos.dao.PurchaseOrderDaoJdbc;
 import com.retailpos.dao.ReportDaoJdbc;
+import com.retailpos.dao.SaleDaoJdbc;
+import com.retailpos.dao.SalesReceiptDaoJdbc;
 import com.retailpos.dao.StockMovementDaoJdbc;
 import com.retailpos.dao.StockReceiptDaoJdbc;
 import com.retailpos.dao.SupplierDaoJdbc;
@@ -15,6 +17,7 @@ import com.retailpos.service.AccessControl;
 import com.retailpos.service.ProductCatalog;
 import com.retailpos.service.PurchaseService;
 import com.retailpos.service.ReportService;
+import com.retailpos.service.SaleService;
 import com.retailpos.service.StockService;
 import com.retailpos.ui.AppServices;
 import com.retailpos.ui.LoginFrame;
@@ -58,6 +61,8 @@ public final class App {
         StockReceiptDaoJdbc stockReceiptDao = new StockReceiptDaoJdbc();
         StockMovementDaoJdbc stockMovementDao = new StockMovementDaoJdbc();
         ReportDaoJdbc reportDao = new ReportDaoJdbc();
+        SaleDaoJdbc saleDao = new SaleDaoJdbc();
+        SalesReceiptDaoJdbc salesReceiptDao = new SalesReceiptDaoJdbc(saleDao);
 
         AccessControl accessControl = new AccessControl(userDao,
                 AppSettings.get(AppSettings.MANAGER_SIGNUP_CODE));
@@ -68,8 +73,11 @@ public final class App {
         StockService stockService = new StockService(accessControl, purchaseOrderDao,
                 productDao, stockReceiptDao, stockMovementDao);
         ReportService reportService = new ReportService(accessControl, productDao,
-                purchaseOrderDao, supplierDao, reportDao);
+                purchaseOrderDao, supplierDao, reportDao, saleDao);
+        SaleService saleService = new SaleService(accessControl, productDao, saleDao,
+                salesReceiptDao, stockMovementDao);
 
-        return new AppServices(accessControl, productCatalog, purchaseService, stockService, reportService);
+        return new AppServices(accessControl, productCatalog, purchaseService, stockService, reportService,
+                saleService);
     }
 }
