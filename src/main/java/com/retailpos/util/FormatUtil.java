@@ -52,6 +52,16 @@ public final class FormatUtil {
         return String.format(Locale.US, "S-%02d", supplierID);
     }
 
+    /** Display form of a sale ID, e.g. 10459 -> "SL-10459". */
+    public static String saleId(int saleID) {
+        return String.format(Locale.US, "SL-%05d", saleID);
+    }
+
+    /** Display form of a receipt number, e.g. sale 10459 -> "RC-SL-10459". */
+    public static String receiptNumber(int saleID) {
+        return "RC-" + saleId(saleID);
+    }
+
     /** "ACTIVE" -> "Active", "DISCONTINUED" -> "Discontinued". */
     public static String status(String status) {
         if (status == null || status.isEmpty()) {

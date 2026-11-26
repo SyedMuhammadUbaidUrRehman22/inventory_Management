@@ -99,6 +99,75 @@ public class Sale {
         this.items = items;
     }
 
+    /** Returns the line for this product code, or null if the product is not on the sale. */
+    public SaleItem findItem(String productCode) {
+        for (SaleItem item : items) {
+            if (item.getProduct() != null && item.getProduct().getProductCode().equals(productCode)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Adds a line (FR15). A product can appear only once on a sale, so if it is already there
+     * the quantities are added together and the existing line keeps its selling price.
+     */
+    public void addItem(SaleItem item) {
+        SaleItem existing = findItem(item.getProduct().getProductCode());
+        if (existing == null) {
+            items.add(item);
+        } else {
+            existing.setQuantity(existing.getQuantity() + item.getQuantity());
+            existing.recalculateLineTotal();
+        }
+        recalculate();
+    }
+
+    /** Removes the line for this product code; returns false if it was not on the sale. */
+    public boolean removeItem(String productCode) {
+        SaleItem item = findItem(productCode);
+        if (item == null) {
+            return false;
+        }
+        items.remove(item);
+        recalculate();
+        return true;
+    }
+
+    /** FR18: subtotal = sum of the line totals. */
+    public BigDecimal calculateSubtotal() {
+        BigDecimal total = BigDecimal.ZERO;
+        for (SaleItem item : items) {
+            total = total.add(item.getLineTotal());
+        }
+        return total;
+    }
+
+    /** FR18: final amount = subtotal - fixed discount (never below zero). */
+    public BigDecimal calculateFinalAmount() {
+        BigDecimal discountValue = discount == null ? BigDecimal.ZERO : discount;
+        return calculateSubtotal().subtract(discountValue).max(BigDecimal.ZERO);
+    }
+
+    /** Refreshes subtotal and final amount from the lines and the discount. */
+    public void recalculate() {
+        if (discount == null) {
+            discount = BigDecimal.ZERO;
+        }
+        subtotal = calculateSubtotal();
+        finalAmount = calculateFinalAmount();
+    }
+
+    /** Units on all lines together. */
+    public int getTotalQuantity() {
+        int total = 0;
+        for (SaleItem item : items) {
+            total += item.getQuantity();
+        }
+        return total;
+    }
+
     @Override
     public String toString() {
         return "Sale{"
