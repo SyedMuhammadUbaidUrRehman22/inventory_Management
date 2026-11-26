@@ -4,6 +4,7 @@ import com.retailpos.service.AccessControl;
 import com.retailpos.service.ProductCatalog;
 import com.retailpos.service.PurchaseService;
 import com.retailpos.service.ReportService;
+import com.retailpos.service.ReturnService;
 import com.retailpos.service.SaleService;
 import com.retailpos.service.StockService;
 
@@ -16,12 +17,13 @@ public record AppServices(
         PurchaseService purchaseService,
         StockService stockService,
         ReportService reportService,
-        SaleService saleService) {
+        SaleService saleService,
+        ReturnService returnService) {
 
-    /** Constructor without the sales service (Phase 1 and 2 tests). */
+    /** Constructor without the sales and returns services (Phase 1 and 2 tests). */
     public AppServices(AccessControl accessControl, ProductCatalog productCatalog,
                        PurchaseService purchaseService, StockService stockService, ReportService reportService) {
-        this(accessControl, productCatalog, purchaseService, stockService, reportService, null);
+        this(accessControl, productCatalog, purchaseService, stockService, reportService, null, null);
     }
 
     /** Backwards-compatible constructor for Phase 1 tests. */

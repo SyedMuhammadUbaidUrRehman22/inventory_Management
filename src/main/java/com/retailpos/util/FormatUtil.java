@@ -1,6 +1,8 @@
 package com.retailpos.util;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /** Formatting and parsing helpers for values shown in or typed into the UI. */
@@ -60,6 +62,58 @@ public final class FormatUtil {
     /** Display form of a receipt number, e.g. sale 10459 -> "RC-SL-10459". */
     public static String receiptNumber(int saleID) {
         return "RC-" + saleId(saleID);
+    }
+
+    /** Display form of a return ID, e.g. 12 -> "RT-00012". */
+    public static String returnId(int returnID) {
+        return String.format(Locale.US, "RT-%05d", returnID);
+    }
+
+    /** Display form of a stock adjustment ID, e.g. 7 -> "ADJ-00007". */
+    public static String adjustmentId(int adjustmentID) {
+        return String.format(Locale.US, "ADJ-%05d", adjustmentID);
+    }
+
+    /** Reads a sale number typed by the user: "SL-00012", "sl-12" or "12" all give 12. */
+    public static int parseSaleId(String text) {
+        String clean = text == null ? "" : text.trim().toUpperCase(Locale.ROOT);
+        if (clean.isEmpty()) {
+            throw new BusinessException("Enter a sale number, e.g. SL-00012.");
+        }
+        if (clean.startsWith("SL-")) {
+            clean = clean.substring(3);
+        }
+        try {
+            int id = Integer.parseInt(clean);
+            if (id > 0) {
+                return id;
+            }
+        } catch (NumberFormatException e) {
+            // fall through to the message below
+        }
+        throw new BusinessException("\"" + text.trim() + "\" is not a sale number. Use the number on the receipt, e.g. SL-00012.");
+    }
+
+    /** Parses a date typed as YYYY-MM-DD. */
+    public static LocalDate parseDate(String text, String field) {
+        LocalDate date = parseOptionalDate(text, field);
+        if (date == null) {
+            throw new BusinessException(field + " is required.");
+        }
+        return date;
+    }
+
+    /** Parses a date typed as YYYY-MM-DD; an empty field gives null. */
+    public static LocalDate parseOptionalDate(String text, String field) {
+        String clean = text == null ? "" : text.trim();
+        if (clean.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(clean);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(field + " must be a date in YYYY-MM-DD format, e.g. 2026-11-26.");
+        }
     }
 
     /** "ACTIVE" -> "Active", "DISCONTINUED" -> "Discontinued". */

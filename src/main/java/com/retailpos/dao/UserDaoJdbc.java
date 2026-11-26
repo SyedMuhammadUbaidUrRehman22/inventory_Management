@@ -80,7 +80,8 @@ public class UserDaoJdbc extends JdbcDao implements UserDao {
         throw new IllegalArgumentException("Unknown user type " + user.getClass().getName());
     }
 
-    private static User map(ResultSet rs) throws SQLException {
+    /** Maps a row with the users columns; also reused by {@link StockAdjustmentDaoJdbc}. */
+    static User map(ResultSet rs) throws SQLException {
         int id = rs.getInt("user_id");
         String username = rs.getString("username");
         String hash = rs.getString("password_hash");

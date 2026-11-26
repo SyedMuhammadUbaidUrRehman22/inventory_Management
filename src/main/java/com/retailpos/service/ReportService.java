@@ -4,13 +4,17 @@ import com.retailpos.dao.ProductDao;
 import com.retailpos.dao.PurchaseOrderDao;
 import com.retailpos.dao.ReportDao;
 import com.retailpos.dao.SaleDao;
+import com.retailpos.dao.StockMovementDao;
 import com.retailpos.dao.SupplierDao;
 import com.retailpos.model.Product;
 import com.retailpos.model.PurchaseOrder;
 import com.retailpos.model.PurchaseOrderItem;
 import com.retailpos.model.Report;
 import com.retailpos.model.Sale;
+import com.retailpos.model.SaleItem;
+import com.retailpos.model.StockMovement;
 import com.retailpos.model.User;
+import com.retailpos.model.enums.StockMovementType;
 import com.retailpos.util.BusinessException;
 
 import javax.swing.JTable;
@@ -21,12 +25,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Service generating inventory, purchase, and sales reports (FR31, FR34, FR36).
+ * Service generating inventory, purchase, and sales reports (FR31–FR36).
  * Restricted to users with {@link AccessControl#GENERATE_REPORTS} (Manager role).
  */
 public class ReportService {
@@ -37,6 +44,7 @@ public class ReportService {
     private final SupplierDao supplierDao;
     private final ReportDao reportDao;
     private final SaleDao saleDao;
+    private final StockMovementDao stockMovementDao;
 
     /** Reports that need sales data (FR33) are not available through this constructor. */
     public ReportService(AccessControl accessControl, ProductDao productDao,
@@ -45,10 +53,18 @@ public class ReportService {
         this(accessControl, productDao, purchaseOrderDao, supplierDao, reportDao, null);
     }
 
+    /** The stock-movement report (FR32) is not available through this constructor. */
     public ReportService(AccessControl accessControl, ProductDao productDao,
                          PurchaseOrderDao purchaseOrderDao, SupplierDao supplierDao,
                          ReportDao reportDao, SaleDao saleDao) {
+        this(accessControl, productDao, purchaseOrderDao, supplierDao, reportDao, saleDao, null);
+    }
+
+    public ReportService(AccessControl accessControl, ProductDao productDao,
+                         PurchaseOrderDao purchaseOrderDao, SupplierDao supplierDao,
+                         ReportDao reportDao, SaleDao saleDao, StockMovementDao stockMovementDao) {
         this.saleDao = saleDao;
+        this.stockMovementDao = stockMovementDao;
         this.accessControl = accessControl;
         this.productDao = productDao;
         this.purchaseOrderDao = purchaseOrderDao;
@@ -331,6 +347,238 @@ public class ReportService {
             subtotal = subtotal.add(sale.getSubtotal());
             discount = discount.add(sale.getDiscount());
             net = net.add(sale.getFinalAmount());
+        }
+    }
+
+    // =====================================================================
+    // FR32: Current inventory report
+    // =====================================================================
+
+    /** One product's stock on hand. Stock value is stock × selling price. */
+    public record InventoryRow(
+            String productCode,
+            String name,
+            String categoryName,
+            String unit,
+            String status,
+            int currentStock,
+            int reorderLevel,
+            boolean lowStock,
+            BigDecimal sellingPrice,
+            BigDecimal stockValue
+    ) {
+    }
+
+    public record CurrentInventoryReport(
+            LocalDateTime generatedAt,
+            String generatedBy,
+            int totalProducts,
+            int totalUnits,
+            int lowStockCount,
+            BigDecimal totalStockValue,
+            List<InventoryRow> rows
+    ) {
+    }
+
+    /** FR32: Stock on hand for every product (active and discontinued), by product code. */
+    public CurrentInventoryReport generateCurrentInventoryReport(User user) {
+        accessControl.requirePermission(user, AccessControl.GENERATE_REPORTS);
+
+        LocalDateTime now = LocalDateTime.now();
+        List<InventoryRow> rows = new ArrayList<>();
+        int totalUnits = 0;
+        int lowStock = 0;
+        BigDecimal totalValue = BigDecimal.ZERO;
+
+        for (Product p : productDao.search(null, null, null)) {
+            int stock = p.getCurrentStockQuantity();
+            boolean low = stock <= p.getReorderLevel();
+            BigDecimal value = p.getSellingPrice().multiply(BigDecimal.valueOf(stock));
+            rows.add(new InventoryRow(p.getProductCode(), p.getName(),
+                    p.getCategory() == null ? "" : p.getCategory().getName(), p.getUnit(), p.getStatus(),
+                    stock, p.getReorderLevel(), low, p.getSellingPrice(), value));
+            totalUnits += stock;
+            totalValue = totalValue.add(value);
+            if (low) {
+                lowStock++;
+            }
+        }
+
+        reportDao.insert(new Report(0, "CURRENT_INVENTORY", now));
+        return new CurrentInventoryReport(now, user.getUsername(), rows.size(), totalUnits, lowStock, totalValue, rows);
+    }
+
+    // =====================================================================
+    // FR32: Stock-movement report
+    // =====================================================================
+
+    public record StockMovementRow(
+            int movementID,
+            LocalDateTime dateTime,
+            String productCode,
+            String productName,
+            StockMovementType type,
+            int quantityChange,
+            int balanceAfter,
+            String sourceReference,
+            String responsibleUser
+    ) {
+    }
+
+    public record StockMovementReport(
+            LocalDateTime generatedAt,
+            String generatedBy,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String productCode,
+            StockMovementType type,
+            int totalMovements,
+            int unitsIn,
+            int unitsOut,
+            List<StockMovementRow> rows
+    ) {
+        /** Units in minus units out. */
+        public int netChange() {
+            return unitsIn - unitsOut;
+        }
+    }
+
+    /**
+     * FR32: Receipts, sales, returns and adjustments over a date range, oldest first.
+     * Dates follow the sales report: both empty means today, one empty means that single day.
+     *
+     * @param productCode only this product, or null for all
+     * @param type        only this kind of movement, or null for all
+     */
+    public StockMovementReport generateStockMovementReport(User user, LocalDate fromDate, LocalDate toDate,
+                                                           String productCode, StockMovementType type) {
+        accessControl.requirePermission(user, AccessControl.GENERATE_REPORTS);
+        if (stockMovementDao == null) {
+            throw new BusinessException("Stock-movement reports are not available.");
+        }
+        DateRange range = DateRange.of(fromDate, toDate);
+        String code = productCode == null || productCode.isBlank() ? null : productCode;
+
+        LocalDateTime now = LocalDateTime.now();
+        List<StockMovementRow> rows = new ArrayList<>();
+        int unitsIn = 0;
+        int unitsOut = 0;
+        for (StockMovement m : stockMovementDao.search(code, type, range.from(), range.to())) {
+            rows.add(new StockMovementRow(m.getMovementID(), m.getDateTime(),
+                    m.getProduct().getProductCode(), m.getProduct().getName(), m.getMovementType(),
+                    m.getQuantityChange(), m.getBalanceAfter(), m.getSourceReference(),
+                    m.getResponsibleUser() == null ? "" : m.getResponsibleUser().getUsername()));
+            if (m.getQuantityChange() > 0) {
+                unitsIn += m.getQuantityChange();
+            } else {
+                unitsOut -= m.getQuantityChange();
+            }
+        }
+
+        reportDao.insert(new Report(0, "STOCK_MOVEMENTS", now));
+        return new StockMovementReport(now, user.getUsername(), range.from(), range.to(), code, type,
+                rows.size(), unitsIn, unitsOut, rows);
+    }
+
+    // =====================================================================
+    // FR35: Product-wise sales report
+    // =====================================================================
+
+    /** One product's sales. Revenue is the sum of its line totals, before sale-level discounts. */
+    public record ProductSalesRow(
+            String productCode,
+            String name,
+            String categoryName,
+            int saleCount,
+            int unitsSold,
+            BigDecimal revenue
+    ) {
+    }
+
+    public record ProductSalesReport(
+            LocalDateTime generatedAt,
+            String generatedBy,
+            LocalDate fromDate,
+            LocalDate toDate,
+            int productsSold,
+            int totalUnits,
+            BigDecimal totalRevenue,
+            List<ProductSalesRow> rows
+    ) {
+    }
+
+    /**
+     * FR35: Quantity sold and revenue per product over a date range, counting COMPLETED sales only,
+     * highest revenue first. Dates follow the sales report: both empty means today, one empty means that day.
+     * Revenue is before the sale's fixed discount, because a discount applies to the whole sale, not one product.
+     */
+    public ProductSalesReport generateProductWiseSalesReport(User user, LocalDate fromDate, LocalDate toDate) {
+        accessControl.requirePermission(user, AccessControl.GENERATE_REPORTS);
+        if (saleDao == null) {
+            throw new BusinessException("Sales reports are not available.");
+        }
+        DateRange range = DateRange.of(fromDate, toDate);
+
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, ProductTotals> perProduct = new LinkedHashMap<>();
+        for (Sale sale : saleDao.findCompleted(range.from(), range.to())) {
+            for (SaleItem item : sale.getItems()) {
+                Product p = item.getProduct();
+                perProduct.computeIfAbsent(p.getProductCode(), k -> new ProductTotals(p)).add(sale.getSaleID(), item);
+            }
+        }
+
+        List<ProductSalesRow> rows = new ArrayList<>();
+        int totalUnits = 0;
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        for (ProductTotals t : perProduct.values()) {
+            rows.add(new ProductSalesRow(t.product.getProductCode(), t.product.getName(),
+                    t.product.getCategory() == null ? "" : t.product.getCategory().getName(),
+                    t.saleIDs.size(), t.units, t.revenue));
+            totalUnits += t.units;
+            totalRevenue = totalRevenue.add(t.revenue);
+        }
+        rows.sort(Comparator.comparing(ProductSalesRow::revenue).reversed()
+                .thenComparing(ProductSalesRow::productCode));
+
+        reportDao.insert(new Report(0, "PRODUCT_SALES", now));
+        return new ProductSalesReport(now, user.getUsername(), range.from(), range.to(), rows.size(),
+                totalUnits, totalRevenue, rows);
+    }
+
+    /** Running totals for one product of the product-wise sales report. */
+    private static final class ProductTotals {
+        private final Product product;
+        private final Set<Integer> saleIDs = new HashSet<>();
+        private int units;
+        private BigDecimal revenue = BigDecimal.ZERO;
+
+        ProductTotals(Product product) {
+            this.product = product;
+        }
+
+        void add(int saleID, SaleItem item) {
+            saleIDs.add(saleID);
+            units += item.getQuantity();
+            revenue = revenue.add(item.getLineTotal());
+        }
+    }
+
+    /** A report period: both dates empty means today, one empty means that single day. */
+    private record DateRange(LocalDate from, LocalDate to) {
+        static DateRange of(LocalDate from, LocalDate to) {
+            if (from == null && to == null) {
+                from = LocalDate.now();
+                to = from;
+            } else if (from == null) {
+                from = to;
+            } else if (to == null) {
+                to = from;
+            }
+            if (from.isAfter(to)) {
+                throw new BusinessException("From date cannot be after To date.");
+            }
+            return new DateRange(from, to);
         }
     }
 
