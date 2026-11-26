@@ -1,7 +1,7 @@
 # Decisions
 
 Every design and implementation decision made so far, with the reason for it.
-Last updated: 2026-11-23 (Phase 1, user accounts, Excel import, Phase 2, transaction guard).
+Last updated: 2026-11-26 (Phase 1, user accounts, Excel import, Phase 2, transaction guard, Phase 4).
 
 **[Team]** marks decisions the team asked for or chose. Everything else is an implementation choice made while
 building. Those follow CLAUDE.md where it gives an answer and can be changed if the team prefers otherwise.
@@ -387,3 +387,55 @@ import, D60) keeps committing its batch itself.
 `insertAll`, would have committed part of the work early if it ran inside `inTransaction`, breaking the
 "commit both or roll back both" rule for stock changes. Nothing does this yet, but Phase 3 (sales, returns,
 adjustments) will add more transactions, so the guard went in first. Covered by `DBConnectionTest`.
+
+## 15. Phase 4: Returns, adjustments and remaining reports (FR22–FR27, FR32, FR35, FR36)
+
+**D81. Layer structure.**
+- DAOs: new `ReturnDao` (table `sale_return`) and `StockAdjustmentDao`, each with a JDBC implementation.
+  `StockMovementDao` gained one method, `search(product, type, from, to)`, for the movement report; nothing was
+  renamed or removed. The tables were already in `schema.sql`, so there is no schema change.
+- Services: new `ReturnService` (Cashier, `recordReturn`). Adjustments live in `StockService`
+  (`recordAdjustment`, `getAdjustmentHistory`; Storekeeper), next to receipts. `ReportService` gained the FR32
+  and FR35 reports.
+- UI: `ReturnsPanel` (`09_Returns.svg`), `StockAdjustmentsPanel` (`10_Stock_Adjustments.svg`), and three more
+  report cards in `ReportsPanel` (`11_Reports.svg`), in the mockup's order.
+- `StockService` and `ReportService` keep their older constructors (as Phase 3 did for `ReportService`), so
+  existing tests did not change. A service built without the new DAO says the feature is not available.
+
+**D82. A return is recorded per sale line, several lines at once.**
+The class diagram has one `Return` per `SaleItem`. The mockup lets the cashier tick several lines with one
+reason, date and decision, so `recordReturn` takes `saleItemID → quantity` and saves one `Return` per line, all
+in one transaction. One invalid line means nothing is saved.
+
+**D83. Only accepted returns count as "returned".**
+The rule "quantity cannot exceed the unreturned quantity sold" counts accepted returns only. A rejected return
+means the customer kept the goods, so those units can still be returned later. Rejected returns are still
+recorded (FR23), with `is_accepted = false`.
+
+**D84. Restocking (FR24).**
+Stock goes up only for a return that is accepted AND reusable (`restockIfEligible`), with one `RETURN` movement
+(`+qty`, reference `SL-#####/RT-#####`) in the same transaction as the return. "Reusable" can only be ticked on an
+accepted return; the service refuses the combination and the screen disables the box. The return date cannot be
+in the future or before the sale date. The sale and its earlier returns are re-read inside the transaction, so two
+returns recorded at once cannot exceed the quantity sold.
+
+**D85. Adjustments (FR25–FR27).**
+An adjustment needs a product, type (`DAMAGED`, `EXPIRED`, `MISSING`), quantity of at least 1, a date that is not
+in the future, and a reason. Stock is read inside the transaction and the quantity cannot exceed it, so stock never
+goes below zero (the database also has `balance_after >= 0`). The adjustment, the stock decrease and one
+`ADJUSTMENT` movement (`-qty`, reference `ADJ-#####`) are saved together. Discontinued products can be adjusted,
+so their remaining stock can be written off. History is newest first and can be filtered by product.
+
+**D86. Report periods.**
+The stock-movement (FR32) and product-wise sales (FR35) reports use the same dates as the sales report (FR33):
+both empty means today, one empty means that single day, and From after To is refused. Each report logs a
+`report` row (`CURRENT_INVENTORY`, `STOCK_MOVEMENTS`, `PRODUCT_SALES`).
+
+**D87. What the new reports show.**
+- Current inventory (FR32): every product, active and discontinued, with stock, reorder level, a low-stock flag,
+  and stock value at selling price (there is no cost price per product; it depends on the supplier).
+- Stock movements (FR32): oldest first, filtered by product and type, with units in, units out and net change.
+- Product-wise sales (FR35): units, number of sales and revenue per product from completed sales, highest revenue
+  first. Revenue is the sum of line totals, before the sale's fixed discount, because a discount applies to the
+  whole sale, not to one product. Returns are not subtracted; they show in the stock-movement report.
+- Printing (FR36) uses the existing `printReport` for every report.

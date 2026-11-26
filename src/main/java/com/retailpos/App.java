@@ -7,8 +7,10 @@ import com.retailpos.dao.ProductDaoJdbc;
 import com.retailpos.dao.ProductSupplierDaoJdbc;
 import com.retailpos.dao.PurchaseOrderDaoJdbc;
 import com.retailpos.dao.ReportDaoJdbc;
+import com.retailpos.dao.ReturnDaoJdbc;
 import com.retailpos.dao.SaleDaoJdbc;
 import com.retailpos.dao.SalesReceiptDaoJdbc;
+import com.retailpos.dao.StockAdjustmentDaoJdbc;
 import com.retailpos.dao.StockMovementDaoJdbc;
 import com.retailpos.dao.StockReceiptDaoJdbc;
 import com.retailpos.dao.SupplierDaoJdbc;
@@ -17,6 +19,7 @@ import com.retailpos.service.AccessControl;
 import com.retailpos.service.ProductCatalog;
 import com.retailpos.service.PurchaseService;
 import com.retailpos.service.ReportService;
+import com.retailpos.service.ReturnService;
 import com.retailpos.service.SaleService;
 import com.retailpos.service.StockService;
 import com.retailpos.ui.AppServices;
@@ -63,6 +66,8 @@ public final class App {
         ReportDaoJdbc reportDao = new ReportDaoJdbc();
         SaleDaoJdbc saleDao = new SaleDaoJdbc();
         SalesReceiptDaoJdbc salesReceiptDao = new SalesReceiptDaoJdbc(saleDao);
+        ReturnDaoJdbc returnDao = new ReturnDaoJdbc();
+        StockAdjustmentDaoJdbc stockAdjustmentDao = new StockAdjustmentDaoJdbc();
 
         AccessControl accessControl = new AccessControl(userDao,
                 AppSettings.get(AppSettings.MANAGER_SIGNUP_CODE));
@@ -71,13 +76,15 @@ public final class App {
         PurchaseService purchaseService = new PurchaseService(accessControl, purchaseOrderDao,
                 supplierDao, productDao, productSupplierDao);
         StockService stockService = new StockService(accessControl, purchaseOrderDao,
-                productDao, stockReceiptDao, stockMovementDao);
+                productDao, stockReceiptDao, stockMovementDao, stockAdjustmentDao);
         ReportService reportService = new ReportService(accessControl, productDao,
-                purchaseOrderDao, supplierDao, reportDao, saleDao);
+                purchaseOrderDao, supplierDao, reportDao, saleDao, stockMovementDao);
         SaleService saleService = new SaleService(accessControl, productDao, saleDao,
                 salesReceiptDao, stockMovementDao);
+        ReturnService returnService = new ReturnService(accessControl, saleDao, returnDao,
+                productDao, stockMovementDao);
 
         return new AppServices(accessControl, productCatalog, purchaseService, stockService, reportService,
-                saleService);
+                saleService, returnService);
     }
 }

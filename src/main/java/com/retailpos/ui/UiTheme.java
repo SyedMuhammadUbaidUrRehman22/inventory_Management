@@ -194,6 +194,13 @@ final class UiTheme {
         return scroll;
     }
 
+    /** Sets the preferred width of each column, in order; the table still stretches to fill its space. */
+    static void columnWidths(JTable table, int... widths) {
+        for (int i = 0; i < widths.length && i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+        }
+    }
+
     /** Right-aligned cell renderer for numbers and money. */
     static DefaultTableCellRenderer rightAligned() {
         DefaultTableCellRenderer r = new DefaultTableCellRenderer();

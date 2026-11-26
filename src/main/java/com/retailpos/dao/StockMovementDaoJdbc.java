@@ -12,6 +12,8 @@ import com.retailpos.model.enums.StockMovementType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /** JDBC implementation of {@link StockMovementDao}. */
@@ -54,6 +56,34 @@ public class StockMovementDaoJdbc extends JdbcDao implements StockMovementDao {
     public List<StockMovement> findRecent(int limit) {
         String sql = SELECT + "ORDER BY sm.date_time DESC, sm.movement_id DESC LIMIT ?";
         return queryList(sql, ps -> ps.setInt(1, Math.max(1, limit)), StockMovementDaoJdbc::map);
+    }
+
+    @Override
+    public List<StockMovement> search(String productCode, StockMovementType type, LocalDate fromDate, LocalDate toDate) {
+        StringBuilder sql = new StringBuilder(SELECT).append("WHERE 1 = 1");
+        List<Object> params = new ArrayList<>();
+        if (productCode != null) {
+            sql.append(" AND sm.product_code = ?");
+            params.add(productCode);
+        }
+        if (type != null) {
+            sql.append(" AND sm.movement_type = ?");
+            params.add(type.name());
+        }
+        if (fromDate != null) {
+            sql.append(" AND sm.date_time >= ?");
+            params.add(Timestamp.valueOf(fromDate.atStartOfDay()));
+        }
+        if (toDate != null) {
+            sql.append(" AND sm.date_time < ?");
+            params.add(Timestamp.valueOf(toDate.plusDays(1).atStartOfDay()));
+        }
+        sql.append(" ORDER BY sm.date_time, sm.movement_id");
+        return queryList(sql.toString(), ps -> {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setObject(i + 1, params.get(i));
+            }
+        }, StockMovementDaoJdbc::map);
     }
 
     private static StockMovement map(ResultSet rs) throws SQLException {

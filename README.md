@@ -10,13 +10,11 @@ The 36 functional requirements (FR1–FR36) are delivered in four phases. See [`
 | Phase | Scope | Status |
 |---|---|---|
 | 1 – Foundation | Login and roles, products, categories, suppliers, supplier prices, search (FR1–FR6, FR28–FR30) | ✅ Done |
-| 2 – Purchasing and stock receiving | Purchase orders, receiving stock, low-stock and supplier purchase reports (FR7–FR13, FR31, FR34) | Planned |
-| 3 – Sales | New sale, stock checks, discount, receipt, sales reports (FR14–FR21, FR33) | Planned |
-| 4 – Returns, adjustments, reports | Returns, stock adjustments, inventory and sales reports, printing (FR22–FR27, FR32, FR35, FR36) | Planned |
+| 2 – Purchasing and stock receiving | Purchase orders, receiving stock, low-stock and supplier purchase reports (FR7–FR13, FR31, FR34) | ✅ Done |
+| 3 – Sales | New sale, stock checks, discount, receipt, sales reports (FR14–FR21, FR33) | ✅ Done |
+| 4 – Returns, adjustments, reports | Returns, stock adjustments, inventory and sales reports, printing (FR22–FR27, FR32, FR35, FR36) | ✅ Done |
 
 Also built, beyond FR1–FR36: Manager sign-up, Manager-owned staff accounts, change password, and adding products from Excel.
-
-Screens for later phases already appear in the menu and show a "not available yet" note.
 
 ## What it can do today
 
@@ -24,6 +22,14 @@ Screens for later phases already appear in the menu and show a "not available ye
 - **Products:** register and edit products (code, name, category, unit, selling price, reorder level, status),
   add categories, and search by code, name or category. New products always start with zero stock.
 - **Suppliers:** register and edit suppliers, link products to them with each supplier's own purchase price.
+- **Purchasing:** Managers create purchase orders for one supplier; Storekeepers record what actually arrives,
+  which is the only way stock goes up apart from returns.
+- **Sales:** Cashiers make sales with stock checks, a fixed discount and a printable receipt.
+- **Returns:** Cashiers record returns against a completed sale. Stock goes back up only when the return is
+  accepted and the item is reusable.
+- **Stock adjustments:** Storekeepers write off damaged, expired or missing stock, with a full history.
+- **Reports** (Manager): low stock, current inventory, stock movements, sales by day or date range, supplier-wise
+  purchases and product-wise sales. Every report can be printed.
 - **Import products from Excel:** Managers and Storekeepers can add many new products at once from an `.xlsx` file.
 - **Staff accounts:** a Manager creates Cashier and Storekeeper accounts, and can deactivate or reactivate them.
 - **Manager sign-up** from the login screen, protected by a setup code.
